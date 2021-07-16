@@ -1,6 +1,8 @@
 package jade;
 
+import org.joml.Vector2f;
 import org.lwjgl.BufferUtils;
+import renderer.Shader;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -10,37 +12,15 @@ import static org.lwjgl.opengl.GL30.glBindVertexArray;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
 
 public class LevelEditorScene extends Scene {
-
-    private String vertexShaderSrc = "#version 330 core\n" +
-            "        layout (location = 0) in vec3 aPos;\n" +
-            "        layout (location  = 1) in vec4 aColor;\n" +
-            "\n" +
-            "        out vec4 fColor;\n" +
-            "\n" +
-            "        void main()\n" +
-            "        {\n" +
-            "            fColor = aColor;\n" +
-            "            gl_Position = vec4(aPos, 1.0);\n" +
-            "        }";
-    private String fragmentShaderSrc = "#version 330 core\n" +
-            "\n" +
-            "        in vec4 fColor;\n" +
-            "\n" +
-            "        out vec4 color;\n" +
-            "\n" +
-            "        void main()\n" +
-            "        {\n" +
-            "            color = fColor;\n" +
-            "        }";
-
+    
     private int vertexID, fragmentID, shaderProgram;
 
     private  float[] vertexArray = {
         //positions                 //color
-        0.5f, -0.5f, 0.0f,          1.0f, 0.0f, 0.0f, 1.0f, //Bottom right
-        0.5f, 0.5f,  0.0f,          0.0f, 1.0f, 0.0f, 1.0f, //Top left
-        0.5f, 0.5f,  0.0f,          0.0f, 0.0f, 1.0f, 1.0f, //Top right
-       -0.5f, -0.5f, 0.0f,          1.0f, 1.0f, 0.0f, 1.0f //Bottom left
+        100.5f, 0.5f, 0.0f,          1.0f, 0.0f, 0.0f, 1.0f, //Bottom right
+       0.5f, 100.5f,  0.0f,          0.0f, 1.0f, 0.0f, 1.0f, //Top left
+        100.5f, 100.5f,  0.0f,          0.0f, 0.0f, 1.0f, 1.0f, //Top right
+       0.5f, 0.5f, 0.0f,          1.0f, 1.0f, 0.0f, 1.0f //Bottom left
 
     };
 
@@ -57,60 +37,17 @@ public class LevelEditorScene extends Scene {
     };
 
     private int vaoID, vboID, eboID;
+
+    private Shader defaultShader;
     public  LevelEditorScene(){
 
     }
 
     @Override
-    public void init(){
-        // ==========================================
-        // Compile and link shaders
-        // ==========================================
-
-        //first load and compile the vertex shader
-        vertexID = glCreateShader(GL_VERTEX_SHADER);
-        //Pass the shader source to the GPU
-        glShaderSource(vertexID, vertexShaderSrc);
-        glCompileShader(vertexID);
-
-        // Check for errors in compilation
-        int success = glGetShaderi(vertexID, GL_COMPILE_STATUS);
-        if (success == GL_FALSE){
-            int len = glGetShaderi(vertexID, GL_INFO_LOG_LENGTH);
-            System.out.println("Error: 'default Shader.glsl' \n\tVertex shader compilation failed");
-            System.out.println(glGetShaderInfoLog(vertexID, len));
-            assert  false : "";
-        }
-
-        //first load and compile the vertex shader
-        fragmentID = glCreateShader(GL_FRAGMENT_SHADER);
-        //Pass the shader source to the GPU
-        glShaderSource(fragmentID, fragmentShaderSrc);
-        glCompileShader(fragmentID);
-
-        // Check for errors in compilation
-        success = glGetShaderi(fragmentID, GL_COMPILE_STATUS);
-        if (success == GL_FALSE){
-            int len = glGetShaderi(fragmentID, GL_INFO_LOG_LENGTH);
-            System.out.println("Error: 'default Shader.glsl' \n\tFragment shader compilation failed");
-            System.out.println(glGetShaderInfoLog(vertexID, len));
-            assert  false : "";
-        }
-
-        // Link shaders and check for errors
-        shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexID);
-        glAttachShader(shaderProgram, fragmentID);
-        glLinkProgram(shaderProgram);
-
-        //check for linking errors
-        success = glGetProgrami(shaderProgram, GL_LINK_STATUS);
-        if (success == GL_FALSE){
-            int len = glGetProgrami(shaderProgram, GL_INFO_LOG_LENGTH);
-            System.out.println("Error: 'default Shader.glsl' \n\tLinking of shader failed");
-            System.out.println(glGetProgramInfoLog(shaderProgram, len));
-            assert  false : "";
-        }
+    public void init() {
+        this.camera = new Camera(new Vector2f());
+        defaultShader = new Shader("assets/shaders/default.glsl");
+        defaultShader.compile();
 
         // ============================================================
         // Generate VAO, VBO, and EBO buffer objects, and send to GPU
@@ -136,20 +73,24 @@ public class LevelEditorScene extends Scene {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, elementBuffer, GL_STATIC_DRAW);
 
         // Add the vertex attribute pointers
-        int positionSize = 3;
+        int positionsSize = 3;
         int colorSize = 4;
         int floatSizeBytes = 4;
-        int vertexSizeBytes = (positionSize + colorSize) * floatSizeBytes;
-        glVertexAttribPointer(0, positionSize, GL_FLOAT, false, vertexSizeBytes, 0);
+        int vertexSizeBytes = (positionsSize + colorSize) * floatSizeBytes;
+        glVertexAttribPointer(0, positionsSize, GL_FLOAT, false, vertexSizeBytes, 0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, colorSize, GL_FLOAT, false, vertexSizeBytes, positionSize * floatSizeBytes);
+        glVertexAttribPointer(1, colorSize, GL_FLOAT, false, vertexSizeBytes, positionsSize * floatSizeBytes);
         glEnableVertexAttribArray(1);
     }
+
     @Override
     public void update(float dt) {
-        // Bind Shader program
-        glUseProgram(shaderProgram);
+        camera.position.x -= dt * 50f;
+        // Bind shader program
+        defaultShader.use();
+        defaultShader.uploadMat4f("uProjection", camera.getProjectionMatrix());
+        defaultShader.uploadMat4f("uView", camera.getViewMatrix());
         // Bind the VAO that we're using
         glBindVertexArray(vaoID);
 
@@ -159,13 +100,13 @@ public class LevelEditorScene extends Scene {
 
         glDrawElements(GL_TRIANGLES, elementArray.length, GL_UNSIGNED_INT, 0);
 
-        // Unbind Everything
+        // Unbind everything
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
 
         glBindVertexArray(0);
 
-        glUseProgram(0);
+        defaultShader.detach();
     }
 
 
